@@ -9,7 +9,7 @@ import pyodata
 import requests
 from bs4 import BeautifulSoup
 from modules.table import TableClass, DownloadTableClass
-
+import re
 import asyncio
 from pyppeteer import launch
 
@@ -38,12 +38,75 @@ class msft_module:
         self.description = 'Microsoft Corporation'
         self.user_agent = """Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/74.0.3729.169 Safari/537.36"""
 
+    async def handle_dialog(self, dialog_page):
+        await dialog_page.waitForSelector('selector_of_the_content', {'visible': True})
+        content = await dialog_page.evaluate('() => document.querySelector("selector_of_the_content").textContent')
+        print(content)
+
+
+    async def search_for_update(self, download_url):
+        html = requests.get(download_url).text
+
+        if 'The website has encountered a problem' not in html:
+            pass
+
+        if 'We did not find any results' in html:
+            print("No results found")
+            return
+
+        # Extracting matches using the first pattern
+        p = r'<a [^>]*?onclick=\'goToDetails\("([a-f0-9\-]+)"\);\'[^>]*?>\s*(.*?)\s*</a>'
+        matches = re.findall(p, html)
+
+        # Extracting matches using the second pattern
+        p2 = r'<input id="([a-f0-9\-]+)" class="flatBlueButtonDownload\b[^"]*?" type="button" value=\'Download\' />'
+
+
+        p3 = r'<td class="resultsbottomBorder resultspadding"[^>]*?>\s*(.*?)\s*</td>'
+        download_uuids = re.findall(p2, html)
+
+         # Extract data from each row, including the date
+        p3 = r'<tr id="[a-f0-9\-]+_R\d+"[^>]*>(.*?)</tr>'
+        rows = re.findall(p3, html, re.DOTALL)
+        data_per_uuid = []
+        for row in rows:
+            data = re.findall(r'<td class="resultsbottomBorder resultspadding"[^>]*?>\s*(.*?)\s*</td>', row)
+            data_per_uuid.append(data)
+
+
+        
+
+        # Map UUIDs to their corresponding data
+        uuid_to_data_mapping = dict(zip(download_uuids, data_per_uuid))
+
+        # Debugging: Print each UUID and its associated data
+        for uuid, data in uuid_to_data_mapping.items():
+            print(f"UUID: {uuid}")
+            for item in data:
+                print(f" - {item}")
+        
+            
+
+
+        
+        # Map the 
+        
+      
+
+
+
+       # p2 = r'<input id="([a-f0-9\-]+)" class="flatBlueButtonDownload\b[^"]*?" type="button" value=\'Download\' />'
+        #assert [uid for uid, title in matches] == re.findall(p2, html)
+
     async def download_kb(self, download_url):
         browser = await launch()
         page = await browser.newPage()
 
 
         await page.goto(download_url)
+        # Check the content length of the response
+        content_length = await page.evaluate('() => { return document.body.innerText.length; }')
+        print(content_length)
         # Print the page content to the console
        # print(await page.content())
         download_size_xpath = "//td[contains(@class, 'resultspadding') and contains(@class, 'resultsSizeWidth')]/span"
@@ -68,6 +131,26 @@ class msft_module:
 
             # Wait for the element to be available
             element = await page.waitForXPath(title)
+
+            # We want the download button too so we can get the download URL
+            button = "//input[@class='flatBlueButtonDownload focus-only']"
+            button_element = await page.waitForXPath(button, {'timeout': 600})
+            await button_element.click()
+            print(download_url)
+            # Wait for the new dialog page to open
+            new_page = await browser.waitForTarget(lambda target: target.url().startswith('https://catalog.update.microsoft.com/DownloadDialog.aspx'), {'timeout': 600})
+            dialog_page = await new_page.page()
+            print(dialog_page)
+            await browser.close()
+
+
+       
+
+            
+           
+
+
+
 
             # Extract the text
             title = await page.evaluate('(element) => element.textContent', element)
@@ -99,8 +182,10 @@ class msft_module:
         # Make the request
         url = "https://api.msrc.microsoft.com/sug/v2.0/en-US/affectedProduct"
         r = requests.get(url, params=params)
+
+        print(r.url)
         response_json = json.loads(r.text)
-        print(r.text)
+      #  print(r.text)
 
         # Create Table
         table_class = table.TableClass()
@@ -148,8 +233,19 @@ class msft_module:
                 if download:
                     if len(unique_download_urls) > 0:
                         for download_url in unique_download_urls:
-                           print(download_url)
-                        asyncio.get_event_loop().run_until_complete(self.download_kb(unique_download_urls.pop()))
+                        
+                           #print(download_url)
+                            content_length_check = requests.get(download_url)
+                        # print Content length response to the console
+                            response_length = content_length_check.headers.get('content-length')
+                        # Theres gotta be a better way to do this, but for now i cant work it out, i am also tired. 
+                            if response_length is not None and int(response_length) in range(10220, 10238):
+                                pass
+                            else:
+                            # Print the text 
+                            # print(download_ur
+                                asyncio.get_event_loop().run_until_complete(self.search_for_update(download_url))
+                                #asyncio.get_event_loop().run_until_complete(self.download_kb(download_url))
                         # print the unique download urls
                         
                     else:
