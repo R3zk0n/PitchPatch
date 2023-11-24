@@ -11,7 +11,6 @@ def search_kb_for_cve(cve):
 
 
 if __name__ == '__main__':
-    # Need to use arch to process and version such as Windows 8 or Windows 7
     parser = argparse.ArgumentParser()
     parser.add_argument("-c", "--cve", help="CVE to search for")
     parser.add_argument("-a", "--arch", help="Architecture to search for", default="")
@@ -32,4 +31,3 @@ if __name__ == '__main__':
 
 
 
-# See PyCharm help at https://www.jetbrains.com/help/pycharm/
