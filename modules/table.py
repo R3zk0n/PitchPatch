@@ -6,6 +6,23 @@ from rich.table import Table
 This class is used to 
 
 '''
+
+class PatchClass:
+    def __init__(self) -> None:
+        self.console = Console()
+        self.table = Table(show_header=True, header_style="bold white", show_lines=True)
+        self.table.add_column("Title", style="bold white", header_style="bold white")
+        self.table.add_column("Update", style="bold blue", justify="left", header_style="bold blue")
+        self.table.add_column("UUID", style="cyan", justify="left", header_style="cyan")
+
+    def table_output(self, Title, Update, UUID):
+        self.table.add_row(Title, Update, UUID)
+
+    def display_table(self):
+        console = Console()
+        console.print(self.table)
+    
+
 class DownloadTableClass:
     def __init__(self):
         self.console = Console()

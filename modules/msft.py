@@ -5,6 +5,7 @@ from datetime import datetime
 import requests
 import xml.dom.minidom
 from modules import table
+from modules.table import PatchClass
 import pyodata
 import requests
 from bs4 import BeautifulSoup
@@ -43,8 +44,15 @@ class msft_module:
         content = await dialog_page.evaluate('() => document.querySelector("selector_of_the_content").textContent')
         print(content)
 
+    async def find_previous_version(self, updated_kb=None, last_kb=None):
+        pass
+        
+        
+
 
     async def search_for_update(self, download_url):
+        Pclass = PatchClass()
+
         html = requests.get(download_url).text
 
         if 'The website has encountered a problem' not in html:
@@ -58,46 +66,57 @@ class msft_module:
         p = r'<a [^>]*?onclick=\'goToDetails\("([a-f0-9\-]+)"\);\'[^>]*?>\s*(.*?)\s*</a>'
         matches = re.findall(p, html)
 
-        # Extracting matches using the second pattern
+        # Extracting UUIDs for downloads
         p2 = r'<input id="([a-f0-9\-]+)" class="flatBlueButtonDownload\b[^"]*?" type="button" value=\'Download\' />'
-
-
-        p3 = r'<td class="resultsbottomBorder resultspadding"[^>]*?>\s*(.*?)\s*</td>'
         download_uuids = re.findall(p2, html)
+        #print(html)
 
-         # Extract data from each row, including the date
-        p3 = r'<tr id="[a-f0-9\-]+_R\d+"[^>]*>(.*?)</tr>'
+        # Extract data from each row, including the date
+        p3 = r'<tr id="([a-f0-9\-]+_R\d+)"[^>]*>(.*?)</tr>'
         rows = re.findall(p3, html, re.DOTALL)
-        data_per_uuid = []
-        for row in rows:
-            data = re.findall(r'<td class="resultsbottomBorder resultspadding"[^>]*?>\s*(.*?)\s*</td>', row)
-            data_per_uuid.append(data)
+        uuid_to_data_mapping = {}
 
+        for row_id, row_content in rows:
+            data = re.findall(r'<td class="resultsbottomBorder resultspadding"[^>]*?>\s*(.*?)\s*</td>', row_content)
+            size = re.search(r'<span id="([a-f0-9\-]+)_size">([^<]+)</span>', row_content)
+            if size:
+                uuid = size.group(1)
+                size_data = size.group(2)
+                if uuid not in uuid_to_data_mapping:
+                    uuid_to_data_mapping[uuid] = {
+                        'data': data,
+                        'size': size_data
+                    }
+            else:
+                size_data = ''
 
-        
-
-        # Map UUIDs to their corresponding data
-        uuid_to_data_mapping = dict(zip(download_uuids, data_per_uuid))
-
-        # Debugging: Print each UUID and its associated data
-        for uuid, data in uuid_to_data_mapping.items():
+        for uuid, data_and_size in uuid_to_data_mapping.items():
+            data = data_and_size['data']
+            size = data_and_size['size']
             print(f"UUID: {uuid}")
-            for item in data:
-                print(f" - {item}")
-        
+            print(f"Data: {data}")
+            print(f"Size: {size}")
+            
+
+    
+    def get_update_download_url(self, update_uid):
+        input_json = [{
+            'uidInfo': update_uid,
+        'updateID': update_uid
+        }]
+
+        url = 'https://www.catalog.update.microsoft.com/DownloadDialog.aspx'
+        html = requests.post(url, {'updateIDs': json.dumps(input_json)}).text
+        p = r'\ndownloadInformation\[\d+\]\.files\[\d+\]\.url = \'([^\']+)\';'
+        matches = re.findall(p, html)
+        print(matches)
+
+                
             
 
 
-        
-        # Map the 
-        
-      
-
-
-
-       # p2 = r'<input id="([a-f0-9\-]+)" class="flatBlueButtonDownload\b[^"]*?" type="button" value=\'Download\' />'
-        #assert [uid for uid, title in matches] == re.findall(p2, html)
-
+            
+    @DeprecationWarning
     async def download_kb(self, download_url):
         browser = await launch()
         page = await browser.newPage()
