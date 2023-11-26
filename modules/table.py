@@ -12,7 +12,7 @@ class PatchClass:
         self.console = Console()
         self.table = Table(show_header=True, header_style="bold white", show_lines=True)
         self.table.add_column("Title", style="bold white", header_style="bold white")
-        self.table.add_column("Update", style="bold blue", justify="left", header_style="bold blue")
+        self.table.add_column("Update Size", style="bold blue", justify="left", header_style="bold blue")
         self.table.add_column("UUID", style="cyan", justify="left", header_style="cyan")
 
     def table_output(self, Title, Update, UUID):

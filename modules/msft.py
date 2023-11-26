@@ -1,6 +1,7 @@
 import json
 import xml
 from datetime import datetime
+from dateutil.relativedelta import relativedelta
 
 import requests
 import xml.dom.minidom
@@ -14,6 +15,7 @@ import re
 import asyncio
 from pyppeteer import launch
 
+visited_urls = set()
 
 '''
 Per the recommendation from discord, this shuould levearge winbinindex to match the KB and download the "Patched and "Non patched" Version of the KB.
@@ -47,10 +49,18 @@ class msft_module:
     async def find_previous_version(self, updated_kb=None, last_kb=None):
         pass
         
-        
+    
+    def calculate_one_month_back(self, input_date):
+        input_datetime = datetime.strptime(input_date, "%B %d, %Y")
+        one_month_back = input_datetime - relativedelta(months=1)
+        result_date = one_month_back.strftime("%B %d, %Y")
+        print(result_date)
+        return result_date
+    
 
 
     async def search_for_update(self, download_url):
+        ran_once = False
         Pclass = PatchClass()
 
         html = requests.get(download_url).text
@@ -59,7 +69,7 @@ class msft_module:
             pass
 
         if 'We did not find any results' in html:
-            print("No results found")
+            pass
             return
 
         # Extracting matches using the first pattern
@@ -79,24 +89,41 @@ class msft_module:
         for row_id, row_content in rows:
             data = re.findall(r'<td class="resultsbottomBorder resultspadding"[^>]*?>\s*(.*?)\s*</td>', row_content)
             size = re.search(r'<span id="([a-f0-9\-]+)_size">([^<]+)</span>', row_content)
-            if size:
+            kb = re.search(r'(\d{4}-\d{2} [A-Za-z0-9\s()\[\]-]+ \(KB\d+\))', row_content)
+            # Convert visited URLs to unique urls only
+
+            if download_url not in visited_urls:
+                visited_urls.add(download_url)
+                
+
+            #print(kb)
+            # print full match of kb
+
+            if size and kb:
                 uuid = size.group(1)
                 size_data = size.group(2)
+                full_kb = kb.group(1)
                 if uuid not in uuid_to_data_mapping:
                     uuid_to_data_mapping[uuid] = {
                         'data': data,
-                        'size': size_data
+                        'size': size_data,
+                        'full_kb': full_kb
                     }
             else:
                 size_data = ''
 
-        for uuid, data_and_size in uuid_to_data_mapping.items():
-            data = data_and_size['data']
-            size = data_and_size['size']
-            print(f"UUID: {uuid}")
-            print(f"Data: {data}")
-            print(f"Size: {size}")
-            
+        for uuid, data_and_size_kb in uuid_to_data_mapping.items():
+            data = data_and_size_kb['data']
+            size = data_and_size_kb['size']
+            full_kb = data_and_size_kb['full_kb']
+            # Extract the date from the full kb
+            date = re.search(r'(\d{4}-\d{2})', full_kb)
+            print(date.group(1))
+            self.calculate_one_month_back("January 12, 2021")
+            PclassTable = PatchClass()
+            PclassTable.table_output(full_kb, size, uuid)
+            PclassTable.display_table()
+
 
     
     def get_update_download_url(self, update_uid):
@@ -204,7 +231,6 @@ class msft_module:
 
         print(r.url)
         response_json = json.loads(r.text)
-      #  print(r.text)
 
         # Create Table
         table_class = table.TableClass()
@@ -223,10 +249,8 @@ class msft_module:
                     vector_string = vector_string.replace("CVSS:3.0/", "")
                     vector_string = vector_string.replace("CVSS:3.1/", "")
                 except Exception as e:
-                    print(e)
+                    # We should add logging..
                     continue
-
-
 
                 for article in item.get('kbArticles', []):
                     supercedence = article.get('supercedence', "None")
@@ -234,16 +258,8 @@ class msft_module:
                     if supercedence is None:
                         supercedence = "N/A"
 
-
-
-
-
-
                 # Collect unique download URLs for this specific item
-                unique_download_urls = {article['downloadUrl'] for article in item.get('kbArticles', []) if
-                                        'downloadUrl' in article}
-
-
+                unique_download_urls = {article['downloadUrl'] for article in item.get('kbArticles', []) if 'downloadUrl' in article}
 
                 kb_path = {url.split('q=')[-1] for url in unique_download_urls}
                 kb_numbers_str = ', '.join(kb_path)
@@ -252,33 +268,31 @@ class msft_module:
                 if download:
                     if len(unique_download_urls) > 0:
                         for download_url in unique_download_urls:
-                        
-                           #print(download_url)
-                            content_length_check = requests.get(download_url)
-                        # print Content length response to the console
-                            response_length = content_length_check.headers.get('content-length')
-                        # Theres gotta be a better way to do this, but for now i cant work it out, i am also tired. 
-                            if response_length is not None and int(response_length) in range(10220, 10238):
-                                pass
-                            else:
-                            # Print the text 
-                            # print(download_ur
-                                asyncio.get_event_loop().run_until_complete(self.search_for_update(download_url))
-                                #asyncio.get_event_loop().run_until_complete(self.download_kb(download_url))
-                        # print the unique download urls
-                        
-                    else:
-                        pass
-                        #table_class.table_output(cve, product, impact, fixed_data, base_score, vector_string, unique_download_urls, kb_numbers_str)
+                            # Check if the URL has already been visited
+                            if download_url not in visited_urls:
+                                # Add the URL to the set of visited URLs
+                                visited_urls.add(download_url)
+
+                                # Check content length
+                                content_length_check = requests.get(download_url)
+                                response_length = content_length_check.headers.get('content-length')
+
+                                # Perform content length check
+                                if response_length is not None and int(response_length) in range(10220, 10238):
+                                    pass
+                                else:
+                                    # Call the search_for_update function only once for each unique URL
+                                    asyncio.get_event_loop().run_until_complete(self.search_for_update(download_url))
+                        else:
+                            pass
                 else:
-                     table_class.table_output(cve, product, impact, fixed_data, base_score, vector_string, unique_download_urls, kb_numbers_str, supercedence)
-
+                    table_class.table_output(cve, product, impact, fixed_data, base_score, vector_string, unique_download_urls, kb_numbers_str, supercedence)
+                    table_class.display_table()
         else:
-            print("No data available in the response.")
+            pass
+        
+     
 
-        # Display the table after processing all items
-        table_class.display_table()
-       # asyncio.get_event_loop().run_until_complete(self.download_kb(kb_numbers_str))
 
 
 
