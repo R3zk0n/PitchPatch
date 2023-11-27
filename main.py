@@ -1,4 +1,5 @@
 import sys
+from datetime import timedelta
 
 # Press ⌃R to execute it or replace it with your code.
 # Press Double ⇧ to search everywhere for classes, files, tool windows, actions, and settings.
@@ -24,11 +25,19 @@ if __name__ == '__main__':
     parser.add_argument("-p", "--parse", help="Use the Database Module", default=False)
     args = parser.parse_args()
 
-    if args.cve is None:
-        print("Please provide a CVE to search for")
-    #if args.parse is not None:
-    #    Collector_Class = Collector()
-    #    Collector_Class.query_cvrf("14 Mar 2017")
+    start_date = datetime(2017, 2, 1)
+    end_date = datetime(2023, 2, 1)
+
+    #if args.cve is None:
+    #    print("Please provide a CVE to search for")
+    if args.parse is not None:
+        Collector_Class = Collector()
+        current_date = start_date
+        while current_date <= end_date:
+            formatted_date = current_date.strftime("%d %b %Y")  # Format as "01 Feb 2017"
+            Collector_Class.query_cvrf(formatted_date)
+            current_date += timedelta(days=30)
+        Collector_Class.query_cvrf("14 Apr 2017")
     elif args.cve is not None and args.download is not None:
         msft_class = msft_module()
         msft_class.odata_query_cve(args.cve, args.version, args.arch, args.download)

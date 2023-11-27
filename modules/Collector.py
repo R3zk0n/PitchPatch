@@ -127,7 +127,8 @@ class Collector:
                             data_dict = {
                                 'Title': title.text if title else None,
                                 'CVE': cve_value,
-                                'Description': cve_notes.text
+                                'Description': cve_notes.text,
+                                "Month": cvrf_date
                             }
                             print(data_dict)
                             DB_Class.add_record(data_dict)
@@ -139,7 +140,23 @@ class Collector:
                                     'Title': note.get('Title'),
                                     'Content': note.text
                                     }
-                            DB_Class.add_note_record(note_data)        
+                            DB_Class.add_note_record(note_data)
+
+                            # Extract and add remediation information
+                            for red in child.find_all('Remediations'):
+                                red_data = {
+                                    'CVE': cve_value,
+                                    'Type': red.get('Type'),
+                                    'Description': red.find("Description").text if red.find("Description") else None,
+                                    'URL': red.find("URL").text if red.find("URL") else None,
+                                    'KB': red.find("KB").text if red.find("KB") else None,
+                                    'Supercedence': red.find("Supercedence").text if red.find("Supercedence") else None,
+                                    'ProductID': red.find("ProductID").text if red.find("ProductID") else None,
+                                    'RestartRequired': red.find("RestartRequired").text if red.find(
+                                        "RestartRequired") else None,
+                                    'SubType': red.find("SubType").text if red.find("SubType") else None
+                                }
+                                DB_Class.add_remediation_record(red_data)
                         else:
                             print(f"Record already exists for CVE: {cve_value}")
 
@@ -195,6 +212,22 @@ class DatabaseClass:
             )
         ''')
 
+        self.cur.execute('''
+              CREATE TABLE IF NOT EXISTS Remediations (
+                  id INTEGER PRIMARY KEY AUTOINCREMENT,
+                  CVE TEXT,
+                  Type TEXT,
+                  Description TEXT,
+                  URL TEXT,
+                  KB TEXT,
+                  Supercedence TEXT,
+                  ProductID INTEGER,
+                  RestartRequired TEXT,
+                  SubType TEXT,
+                  FOREIGN KEY (CVE) REFERENCES Vulnerabilities (CVE)
+              )
+          ''')
+
         # Create a new Notes table
         self.cur.execute('''
             CREATE TABLE IF NOT EXISTS Notes (
@@ -207,6 +240,30 @@ class DatabaseClass:
             )
         ''')
         self.conn.commit()
+
+    def add_remediation_record(self, data_dict):
+        try:
+            cve_value = data_dict.get('CVE')
+            if cve_value:
+                # Prepare the column names and values for the insert statement
+                columns = ', '.join(data_dict.keys())
+                placeholders = ', '.join(['?'] * len(data_dict))
+                values = tuple(data_dict.values())
+
+                # Create and execute the insert statement
+                insert_sql = f"INSERT INTO Remediations ({columns}) VALUES ({placeholders})"
+                self.cur.execute(insert_sql, values)
+
+                # Commit the changes
+                self.conn.commit()
+                print(f"Remediation record added successfully for CVE: {cve_value}")
+                return True
+            else:
+                print("CVE value not found in data_dict.")
+                return False
+        except sqlite3.Error as e:
+            print(f"Error adding remediation record: {e}")
+            return False
 
     def add_note_record(self, note_data):
         try:
