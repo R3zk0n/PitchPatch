@@ -53,6 +53,7 @@ class TableClass:
         self.table.add_column("Product", style="bold blue", justify="left", header_style="bold blue")
         self.table.add_column("Impact", style="cyan", justify="left", header_style="cyan")
         self.table.add_column("Release Date", style="bold magenta", justify="left", header_style="bold magenta")
+        self.table.add_column("Previous Date", style="bold green", justify="left", header_style="bold green")
         self.table.add_column("Base Score", style="bold red", justify="left", header_style="bold red")
         self.table.add_column("Vector String", header_style="yellow", style="yellow", justify="left")
         self.table.add_column("Download URLs", style="blue", no_wrap=True, header_style="bold blue")
@@ -60,9 +61,9 @@ class TableClass:
         self.table.add_column("Superceded KB", style="red", no_wrap=True, header_style="red")
 
 
-    def table_output(self, cve, product, impact, release, base, vector, download_urls, kb, superceded_kb):
+    def table_output(self, cve, product, impact, release, previous_patch, base, vector, download_urls, kb, superceded_kb):
         download_urls_str = ', '.join(download_urls)
-        self.table.add_row(cve, product, impact, release, base, vector, download_urls_str, kb, superceded_kb)
+        self.table.add_row(cve, product, impact, release, previous_patch, base, vector, download_urls_str, kb, superceded_kb)
 
 
 

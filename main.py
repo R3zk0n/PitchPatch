@@ -1,4 +1,3 @@
-# This is a sample Python script.
 import sys
 
 # Press ⌃R to execute it or replace it with your code.
@@ -7,6 +6,7 @@ import sys
 from modules.msft import msft_module
 from modules.delta import *
 import argparse
+from modules.Collector import Collector
 
 def search_kb_for_cve(cve):
     msft_class = msft_module()
@@ -21,10 +21,14 @@ if __name__ == '__main__':
     parser.add_argument("-a", "--arch", help="Architecture to search for", default="")
     parser.add_argument("-v", "--version", help="Windows version to use", default="Windows 10")
     parser.add_argument("-d", "--download", help="Download KB", default=False)
+    parser.add_argument("-p", "--parse", help="Use the Database Module", default=False)
     args = parser.parse_args()
 
     if args.cve is None:
         print("Please provide a CVE to search for")
+    #if args.parse is not None:
+    #    Collector_Class = Collector()
+    #    Collector_Class.query_cvrf("14 Mar 2017")
     elif args.cve is not None and args.download is not None:
         msft_class = msft_module()
         msft_class.odata_query_cve(args.cve, args.version, args.arch, args.download)

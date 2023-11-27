@@ -2,7 +2,8 @@ import json
 import xml
 from datetime import datetime
 from dateutil.relativedelta import relativedelta
-
+from Utils.Utils import calculate_one_month_back, get_previous_month_second_tuesday
+from Utils.Utils import download, convert_date_format
 import requests
 import xml.dom.minidom
 from modules import table
@@ -11,6 +12,8 @@ import pyodata
 import requests
 from bs4 import BeautifulSoup
 from modules.table import TableClass, DownloadTableClass
+from modules.Collector import Collector
+from modules.Collector import DatabaseClass
 import re
 import asyncio
 from pyppeteer import launch
@@ -56,7 +59,7 @@ class msft_module:
         result_date = one_month_back.strftime("%B %d, %Y")
         print(result_date)
         return result_date
-    
+
 
 
     async def search_for_update(self, download_url):
@@ -119,10 +122,11 @@ class msft_module:
             # Extract the date from the full kb
             date = re.search(r'(\d{4}-\d{2})', full_kb)
             print(date.group(1))
-            self.calculate_one_month_back("January 12, 2021")
+           # calculate_one_month_back(date.group(1))
             PclassTable = PatchClass()
             PclassTable.table_output(full_kb, size, uuid)
             PclassTable.display_table()
+            self.get_update_download_url(uuid)
 
 
     
@@ -136,7 +140,7 @@ class msft_module:
         html = requests.post(url, {'updateIDs': json.dumps(input_json)}).text
         p = r'\ndownloadInformation\[\d+\]\.files\[\d+\]\.url = \'([^\']+)\';'
         matches = re.findall(p, html)
-        print(matches)
+        download(urls=matches, dest_dir='output')
 
                 
             
@@ -145,76 +149,7 @@ class msft_module:
             
     @DeprecationWarning
     async def download_kb(self, download_url):
-        browser = await launch()
-        page = await browser.newPage()
-
-
-        await page.goto(download_url)
-        # Check the content length of the response
-        content_length = await page.evaluate('() => { return document.body.innerText.length; }')
-        print(content_length)
-        # Print the page content to the console
-       # print(await page.content())
-        download_size_xpath = "//td[contains(@class, 'resultspadding') and contains(@class, 'resultsSizeWidth')]/span"
-        version_xpath = "//td[contains(@class, 'resultsbottomBorder') and contains(@class, 'resultspadding')][3]/text()"
-
-        date_xpath = "//td[contains(@class, 'resultsbottomBorder') and contains(@class, 'resultspadding')][5]"
-
-        # Use XPath to extract the content
-        try:
-            date_element = await page.waitForXPath(date_xpath, {'timeout': 600})
-            date_text = await page.evaluate('(element) => element.textContent', date_element)
-
-            element = await page.waitForXPath(version_xpath, {'timeout': 600})
-            windows_server_version = await page.evaluate('(element) => element.textContent', element)
-
-            # Download size
-            element = await page.waitForXPath(download_size_xpath, {'timeout': 600})
-            download_size = await page.evaluate('(element) => element.textContent', element)
-
-            # XPath for the <a> element
-            title = "//td[contains(@class, 'resultspadding')]/a"
-
-            # Wait for the element to be available
-            element = await page.waitForXPath(title)
-
-            # We want the download button too so we can get the download URL
-            button = "//input[@class='flatBlueButtonDownload focus-only']"
-            button_element = await page.waitForXPath(button, {'timeout': 600})
-            await button_element.click()
-            print(download_url)
-            # Wait for the new dialog page to open
-            new_page = await browser.waitForTarget(lambda target: target.url().startswith('https://catalog.update.microsoft.com/DownloadDialog.aspx'), {'timeout': 600})
-            dialog_page = await new_page.page()
-            print(dialog_page)
-            await browser.close()
-
-
-       
-
-            
-           
-
-
-
-
-            # Extract the text
-            title = await page.evaluate('(element) => element.textContent', element)
-            if title:
-                DownloadTable = DownloadTableClass()
-                DownloadTable.table_output(title.strip(), windows_server_version.strip(), date_text.strip(), download_size.strip(), download_url)
-                element = await page.waitForXPath(download_size_xpath)
-                download_size = await page.evaluate('(element) => element.textContent', element)
-                DownloadTable.display_table()
-                self.console.print("+"*1000)
-            else:
-                pass
-
-        except Exception as e:
-            pass
-
-
-        #print(version_xpath)
+        pass
 
 
 
@@ -237,6 +172,9 @@ class msft_module:
 
         # Check if the response has data
         if 'value' in response_json and len(response_json['value']) > 0:
+            # Create an empty list to store the data for all items
+            table_data = []
+
             for item in response_json['value']:
                 try:
                     release_date = item['releaseDate']
@@ -263,8 +201,14 @@ class msft_module:
 
                 kb_path = {url.split('q=')[-1] for url in unique_download_urls}
                 kb_numbers_str = ', '.join(kb_path)
+                get_patch = get_previous_month_second_tuesday(fixed_data)
+                #DataBaseMaker = DatabaseClass()
+                #DataBaseMaker.create_tables()
+                #Collector_Class = Collector()
+                #Collector_Class.query_cvrf(fixed_data)
+                
 
-                # Add a row to the table for this item
+                # Add a row to the table data for this item
                 if download:
                     if len(unique_download_urls) > 0:
                         for download_url in unique_download_urls:
@@ -286,10 +230,18 @@ class msft_module:
                         else:
                             pass
                 else:
-                    table_class.table_output(cve, product, impact, fixed_data, base_score, vector_string, unique_download_urls, kb_numbers_str, supercedence)
-                    table_class.display_table()
+                    # Append the data for this item to the table_data lista
+                    table_data.append([cve, product, impact, fixed_data, get_patch,base_score, vector_string, unique_download_urls, kb_numbers_str, supercedence])
+
+            # After processing all items, display the table
+            if not download:
+                #table_class.table_output("CVE", "Product", "Impact", "Release Date", "Base Score", "Vector String", "Download URLs", "KB Numbers", "Supercedence")
+                for row in table_data:
+                    table_class.table_output(*row)
+                table_class.display_table()
         else:
             pass
+
         
      
 
