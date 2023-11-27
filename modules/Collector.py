@@ -20,6 +20,13 @@ import requests
 db_semaphore = threading.Semaphore(1)
 Base = declarative_base()
 
+
+class ProductMapping(Base):
+    __tablename__ = 'product_mappings'
+
+    id = Column(Integer, primary_key=True)
+    product_id = Column(Integer)
+    vulnerability_id = Column(Integer, ForeignKey('vulnerabilities.id'))
 class Vulnerability(Base):
     __tablename__ = 'vulnerabilities'
 
@@ -93,14 +100,50 @@ class Collector:
             else:
                 print(f"Record already exists for CVE: {cve_value}")
 
+    def get_full_product_name(self, product_id, xml_string):
+        # Create a BeautifulSoup object to parse the XML string
+        soup = BeautifulSoup(xml_string, 'xml')
+
+        # Find all elements with ProductID attributes
+        product_id_elems = soup.find_all('prod:FullProductName', {'ProductID': product_id})
+
+        # Initialize a variable to store the FullProductName
+        full_product_name = None
+
+        # Iterate through the found elements
+        print(f"Searching for ProductID: {product_id}")
+        for elem in product_id_elems:
+            print(f"Found ProductID: {product_id}")
+            # Extract the FullProductName from the element
+            full_product_name = elem.text
+            print(f"FullProductName: {full_product_name}")
+            break  # Stop searching once a match is found
+
+        return full_product_name
+
+    def create_product_id_mapping(self, xml_string):
+        # Initialize an empty dictionary to store the mapping
+        product_id_mapping = {}
+
+        # Parse the XML string using BeautifulSoup
+        soup = BeautifulSoup(xml_string, 'xml')
+
+        # Find all FullProductName elements with ProductID attributes
+        full_product_name_elems = soup.find_all('prod:FullProductName', {'ProductID': True})
+
+        # Iterate through the elements and extract the mapping
+        for elem in full_product_name_elems:
+            product_id = elem['ProductID']
+            full_product_name = elem.text
+            product_id_mapping[product_id] = full_product_name
+
+        return product_id_mapping
+    
     def query_cvrf(self, date):
         try:
             # Convert the input date to the desired format
             cvrf_date = convert_date_format(date)
             print(cvrf_date)
-            DB_Class = DatabaseClass()
-
-
 
             url = f"https://api.msrc.microsoft.com/cvrf/v2.0/cvrf/{cvrf_date}"
             req = requests.get(url)
@@ -110,19 +153,21 @@ class Collector:
             if req.text:
                 # Extract the Description by finding CVE and then locating the Description Note
                 soup = BeautifulSoup(req.text, 'xml')  # Use 'xml' parser for XML documents
+                self.DB_Class = DatabaseClass()  # Create an instance of DatabaseClass
+
                 # Print the key-value pairs
                 for child in soup.find_all():
                     title = child.find("Title")
                     cve_notes = child.find("Notes")
                     cve = child.find("CVE")
                     description = child.find("Description")
+                    product_id = child.find("ProductID")  # Add this line to extract ProductID
+
                     if cve is not None:
                         cve_value = cve.text
 
-
-
                         # Check if the record with the same CVE value exists
-                        if not DB_Class.record_exists(cve_value):
+                        if not self.DB_Class.record_exists(cve_value):
                             # Create a dictionary with the key-value pairs
                             data_dict = {
                                 'Title': title.text if title else None,
@@ -130,17 +175,7 @@ class Collector:
                                 'Description': cve_notes.text,
                                 "Month": cvrf_date
                             }
-                            print(data_dict)
-                            DB_Class.add_record(data_dict)
-                            
-                            for note in child.find_all('Note'):
-                                note_data = {
-                                    'CVE': cve_value,
-                                    'Type': note.get('Type'),
-                                    'Title': note.get('Title'),
-                                    'Content': note.text
-                                    }
-                            DB_Class.add_note_record(note_data)
+                            vulnerability_id = self.DB_Class.add_record(data_dict)
 
                             # Extract and add remediation information
                             for red in child.find_all('Remediations'):
@@ -151,12 +186,22 @@ class Collector:
                                     'URL': red.find("URL").text if red.find("URL") else None,
                                     'KB': red.find("KB").text if red.find("KB") else None,
                                     'Supercedence': red.find("Supercedence").text if red.find("Supercedence") else None,
-                                    'ProductID': red.find("ProductID").text if red.find("ProductID") else None,
+                                    'ProductID': product_id.text if product_id else None,  # Add ProductID
                                     'RestartRequired': red.find("RestartRequired").text if red.find(
                                         "RestartRequired") else None,
                                     'SubType': red.find("SubType").text if red.find("SubType") else None
                                 }
-                                DB_Class.add_remediation_record(red_data)
+                                self.DB_Class.add_remediation_record(red_data)
+
+                            # Add ProductID to Products table
+                            if product_id:
+                                full_product_name = self.get_full_product_name(product_id.text, req.text)
+                                product_data = {
+                                    'ProductID': product_id.text,
+                                    'FullProductName': full_product_name,
+                                    'VulnerabilityID': vulnerability_id
+                                }
+                                self.DB_Class.add_product_record(product_data)
                         else:
                             print(f"Record already exists for CVE: {cve_value}")
 
@@ -166,7 +211,7 @@ class Collector:
         except Exception as e:
             print("Error querying CVRF:", e)
             return False
-
+        
     def __del__(self):
         self.session.close()
 
@@ -195,6 +240,16 @@ class DatabaseClass:
         ''')
         self.cur.execute('''
             CREATE TABLE IF NOT EXISTS Products (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                ProductID INTEGER,
+                FullProductName TEXT,
+                VulnerabilityID INTEGER,
+                FOREIGN KEY (VulnerabilityID) REFERENCES Vulnerabilities (id)
+            )
+        ''')
+
+        self.cur.execute('''
+            CREATE TABLE IF NOT EXISTS ProductMappings (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 ProductID INTEGER,
                 VulnerabilityID INTEGER,
@@ -241,6 +296,36 @@ class DatabaseClass:
         ''')
         self.conn.commit()
 
+    def get_vulnerability_id(self, cve_value):
+        try:
+            # Retrieve the VulnerabilityID for a given CVE value
+            result = self.cur.execute("SELECT id FROM Vulnerabilities WHERE CVE = ?", (cve_value,)).fetchone()
+            if result:
+                return result[0]
+            else:
+                return None
+        except sqlite3.Error as e:
+            print(f"Error getting VulnerabilityID: {e}")
+            return None
+
+    def add_product_mapping(self, product_mapping):
+        try:
+            # Prepare the column names and values for the insert statement
+            columns = ', '.join(product_mapping.keys())
+            placeholders = ', '.join(['?'] * len(product_mapping))
+            values = tuple(product_mapping.values())
+
+            # Create and execute the insert statement
+            insert_sql = f"INSERT INTO product_mappings ({columns}) VALUES ({placeholders})"
+            self.cur.execute(insert_sql, values)
+
+            # Commit the changes
+            self.conn.commit()
+            print("Product mapping added successfully")
+            return True
+        except sqlite3.Error as e:
+            print(f"Error adding product mapping: {e}")
+            return False
     def add_remediation_record(self, data_dict):
         try:
             cve_value = data_dict.get('CVE')
