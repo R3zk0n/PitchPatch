@@ -241,7 +241,7 @@ class DatabaseClass:
         self.cur.execute('''
             CREATE TABLE IF NOT EXISTS Products (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
-                ProductID INTEGER,
+                ProductID INTEGER UNIQUE,
                 FullProductName TEXT,
                 VulnerabilityID INTEGER,
                 FOREIGN KEY (VulnerabilityID) REFERENCES Vulnerabilities (id)
@@ -371,19 +371,27 @@ class DatabaseClass:
     
     def add_product_record(self, product_data):
         try:
-            # Prepare the column names and values for the insert statement
+            product_id = product_data.get('ProductID')
+            if product_id:
+            # Check if a record with the same ProductID already exists
+                existing_record = self.cur.execute("SELECT * FROM Products WHERE ProductID = ?", (product_id,)).fetchone()
+                if existing_record:
+                    print(f"Record already exists for ProductID: {product_id}")
+                    return False
+
             columns = ', '.join(product_data.keys())
             placeholders = ', '.join(['?'] * len(product_data))
             values = tuple(product_data.values())
 
-            # Create and execute the insert statement
             insert_sql = f"INSERT INTO Products ({columns}) VALUES ({placeholders})"
             self.cur.execute(insert_sql, values)
 
-            # Commit the changes
             self.conn.commit()
             print("Product record added successfully")
             return True
+        except sqlite3.IntegrityError:
+            print(f"A record with ProductID: {product_id} already exists.")
+            return False
         except sqlite3.Error as e:
             print(f"Error adding product record: {e}")
             return False

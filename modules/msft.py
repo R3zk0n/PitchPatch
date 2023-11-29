@@ -17,8 +17,11 @@ from modules.Collector import DatabaseClass
 import re
 import asyncio
 from pyppeteer import launch
-
+import os
 visited_urls = set()
+
+#MAIN TODO: Get the N-Day/1-day download to work
+#TODO: Ensure that the productID mapping are not duplicated. 
 
 '''
 Per the recommendation from discord, this shuould levearge winbinindex to match the KB and download the "Patched and "Non patched" Version of the KB.
@@ -93,6 +96,7 @@ class msft_module:
             data = re.findall(r'<td class="resultsbottomBorder resultspadding"[^>]*?>\s*(.*?)\s*</td>', row_content)
             size = re.search(r'<span id="([a-f0-9\-]+)_size">([^<]+)</span>', row_content)
             kb = re.search(r'(\d{4}-\d{2} [A-Za-z0-9\s()\[\]-]+ \(KB\d+\))', row_content)
+            kb_num = re.search(r'\(KB[0-9]+\)', row_content)
             # Convert visited URLs to unique urls only
 
             if download_url not in visited_urls:
@@ -106,10 +110,13 @@ class msft_module:
                 uuid = size.group(1)
                 size_data = size.group(2)
                 full_kb = kb.group(1)
+                kb_num = kb_num.group(0)
+                clean_kb = kb_num.strip("()")
                 if uuid not in uuid_to_data_mapping:
                     uuid_to_data_mapping[uuid] = {
                         'data': data,
                         'size': size_data,
+                        'KB': clean_kb,
                         'full_kb': full_kb
                     }
             else:
@@ -119,18 +126,18 @@ class msft_module:
             data = data_and_size_kb['data']
             size = data_and_size_kb['size']
             full_kb = data_and_size_kb['full_kb']
+            kb = data_and_size_kb['KB']
             # Extract the date from the full kb
             date = re.search(r'(\d{4}-\d{2})', full_kb)
             print(date.group(1))
-           # calculate_one_month_back(date.group(1))
             PclassTable = PatchClass()
             PclassTable.table_output(full_kb, size, uuid)
             PclassTable.display_table()
-            self.get_update_download_url(uuid)
+            self.get_update_download_url(uuid, kb=kb)
 
 
     
-    def get_update_download_url(self, update_uid):
+    def get_update_download_url(self, update_uid, kb):
         input_json = [{
             'uidInfo': update_uid,
         'updateID': update_uid
@@ -140,7 +147,11 @@ class msft_module:
         html = requests.post(url, {'updateIDs': json.dumps(input_json)}).text
         p = r'\ndownloadInformation\[\d+\]\.files\[\d+\]\.url = \'([^\']+)\';'
         matches = re.findall(p, html)
-        download(urls=matches, dest_dir='output')
+        dest_dir = f'output/{kb}'
+
+        if not os.path.exists(dest_dir):
+            os.makedirs(dest_dir)
+        download(urls=matches, dest_dir=dest_dir)
 
                 
             
@@ -235,7 +246,6 @@ class msft_module:
 
             # After processing all items, display the table
             if not download:
-                #table_class.table_output("CVE", "Product", "Impact", "Release Date", "Base Score", "Vector String", "Download URLs", "KB Numbers", "Supercedence")
                 for row in table_data:
                     table_class.table_output(*row)
                 table_class.display_table()

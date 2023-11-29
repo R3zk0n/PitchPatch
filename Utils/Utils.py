@@ -133,3 +133,61 @@ def download(urls: Iterable[str], dest_dir: str):
                 dest_path = os.path.join(dest_dir, filename)
                 task_id = progress.add_task("download", filename=filename, start=False)
                 pool.submit(copy_url, task_id, url, dest_path)
+
+
+
+
+
+
+def get_update(windows_version, update_kb):
+    search_query = update_kb
+
+    if windows_version == '11-21H2':
+        package_windows_version = fr'Windows 11'  # first Windows 11 version, no suffix
+    elif '-' in windows_version:
+        windows_version_split = windows_version.split('-')
+        search_query += f' {windows_version_split[1]}'
+        package_windows_version = fr'Windows {windows_version_split[0]} Version {windows_version_split[1]}'
+    else:
+        search_query += f' {windows_version}'
+        package_windows_version = fr'Windows 10 Version {windows_version}'
+
+    search_query += f' {config.updates_architecture}'
+
+    found_updates = search_for_updates(search_query)
+
+    filter_regex = r'\bserver\b|\bDynamic Cumulative Update\b| UUP$'
+
+    found_updates = [update for update in found_updates if not re.search(filter_regex, update[1], re.IGNORECASE)]
+
+    # Replace the pattern, and if after the replacement the item exists, filter it.
+    # For example, if there's both Cumulative and Delta, pick Cumulative.
+    filter_regex_pairs = [
+        [r'^(\d{4}-\d{2} )?Delta ', r'\1Cumulative '],
+        [r'\bWindows 10 Version 1909\b', r'Windows 10 Version 1903'],
+    ]
+
+    found_update_titles = [update[1] for update in found_updates]
+    filtered_updates = []
+    for update in found_updates:
+        update_title = update[1]
+        matched = False
+        for search, replace in filter_regex_pairs:
+            update_title_sub, num_subs = re.subn(search, replace, update_title)
+            if num_subs > 0 and update_title_sub in found_update_titles:
+                matched = True
+                break
+
+        if not matched:
+            filtered_updates.append(update)
+
+    found_updates = filtered_updates
+
+    if len(found_updates) != 1:
+        raise Exception(f'Expected one update item, found {len(found_updates)}')
+
+    update_uid, update_title = found_updates[0]
+    update_title_pattern = rf'(\d{{4}}-\d{{2}} )?(Cumulative|Delta) Update (Preview )?for {package_windows_version} for (?i:{config.updates_architecture})-based Systems \({update_kb}\)'
+    assert re.fullmatch(update_title_pattern, update_title), update_title
+
+    return update_uid, update_title
