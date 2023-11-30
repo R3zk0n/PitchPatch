@@ -82,7 +82,9 @@ class WinBinModules():
 
     def search_for_updates(self, search_terms):
         console = Console()
+        # Updated
         console.print(search_terms)
+
         url = 'https://www.catalog.update.microsoft.com/Search.aspx'
         while True:
             html = requests.get(url, {'q': search_terms}).text
