@@ -3,7 +3,13 @@ from rich.console import Console
 from rich.table import Table
 
 '''
-This class is used to 
+# Notes For Debugging.. 
+Patch Tuesday - Every Second tuesday of the month. 
+Public Disclosed does get pushed urgently.. ?? Quick Patch?
+Cumulative update windows 10 
+
+Supersedended - 
+
 
 '''
 

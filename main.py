@@ -24,8 +24,8 @@ if __name__ == '__main__':
     parser.add_argument("-a", "--arch", help="Architecture to search for", default="")
     parser.add_argument("-v", "--version", help="Windows version to use", default="Windows 10")
     parser.add_argument("-d", "--download", help="Download KB", default=False)
-    parser.add_argument("-p", "--parse", help="Use the Database Module", default=False)
-    parser.add_argument("-w", "--win", help="Use module", default=False)
+    parser.add_argument("-p", "--parse", help="Use the Database Module")
+    parser.add_argument("-w", "--win", help="Use module")
     args = parser.parse_args()
 
     start_date = datetime(2017, 2, 1)
@@ -38,13 +38,14 @@ if __name__ == '__main__':
 
 
 
-    #if args.cve is None:
+    #f args.cve is None:
     #    print("Please provide a CVE to search for")
-    #elif args.cve is not None and args.download is not None:
-    #    msft_class = msft_module()
-    #    msft_class.odata_query_cve(args.cve, args.version, args.arch, args.download)
+    if args.cve is not None and args.download is not None:
+        msft_class = msft_module()
+        msft_class.odata_query_cve(args.cve, args.version, args.arch, args.download)
 
-    if args.parse is not None:
+
+    elif args.parse is not None:
         Collector_Class = Collector()
         current_date = start_date
         while current_date <= end_date:

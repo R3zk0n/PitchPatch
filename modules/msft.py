@@ -64,6 +64,10 @@ class msft_module:
         return result_date
 
 
+    def download_Superceded(self, Superceded_kb):
+        pass 
+
+
 
     async def search_for_update(self, download_url):
         ran_once = False
@@ -213,10 +217,16 @@ class msft_module:
                 kb_path = {url.split('q=')[-1] for url in unique_download_urls}
                 kb_numbers_str = ', '.join(kb_path)
                 get_patch = get_previous_month_second_tuesday(fixed_data)
+                for url in unique_download_urls:
+                    url_test = url.split("q=")[0:1]
+                
                 #DataBaseMaker = DatabaseClass()
                 #DataBaseMaker.create_tables()
                 #Collector_Class = Collector()
                 #Collector_Class.query_cvrf(fixed_data)
+
+                # If ran, we need to check the Superceded and download that.. 
+
                 
 
                 # Add a row to the table data for this item
