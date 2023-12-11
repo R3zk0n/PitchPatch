@@ -1,7 +1,4 @@
 from datetime import datetime
-from dateutil.relativedelta import relativedelta
-from Utils.Utils import calculate_one_month_back, get_previous_month_second_tuesday
-from Utils.Utils import download, convert_date_format
 import requests
 import xml.dom.minidom
 import os
@@ -205,7 +202,7 @@ class Extractor:
 
         
 
-if "__name__" == "__main__":
+if __name__ == "__main__":
     print("This is the Extractor module");
     argparse = argparse.ArgumentParser(description="Extracts the files from the update MSU file")
     argparse.add_argument("--msu", help="The MSU file to extract")
@@ -227,6 +224,8 @@ if "__name__" == "__main__":
     else:
         print("Please specify the MSU or CAB file to extract")
         sys.exit(1)
+    # if nothing print the help
+    print(argparse.print_help())
 
 
 
