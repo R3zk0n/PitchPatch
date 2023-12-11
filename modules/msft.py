@@ -141,22 +141,29 @@ class msft_module:
             self.get_update_download_url(uuid, kb=kb)
 
 
-    
+
     def get_update_download_url(self, update_uid, kb):
         input_json = [{
             'uidInfo': update_uid,
-        'updateID': update_uid
+            'updateID': update_uid
         }]
 
         url = 'https://www.catalog.update.microsoft.com/DownloadDialog.aspx'
         html = requests.post(url, {'updateIDs': json.dumps(input_json)}).text
         p = r'\ndownloadInformation\[\d+\]\.files\[\d+\]\.url = \'([^\']+)\';'
         matches = re.findall(p, html)
-        dest_dir = f'output/{kb}'
 
+        if matches:
+            first_url = matches[0]  # Take only the first URL
+        else:
+            first_url = None
+
+        dest_dir = f'output/{kb}'
         if not os.path.exists(dest_dir):
             os.makedirs(dest_dir)
-        download(urls=matches, dest_dir=dest_dir)
+
+        if first_url:
+            download(urls=[first_url], dest_dir=dest_dir)  # Call download with only the first URL
 
                 
             
