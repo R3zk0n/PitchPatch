@@ -27,15 +27,14 @@ class Extractor:
 
     def extract_msu_file(self, msu_file, output_dir):
         print("Extracting the MSU file")
-        extract_cmd = "expand.exe " + "-F:* ", + msu_file + " ", output_dir
+        extract_cmd = "expand.exe -F:* " + msu_file + " " + output_dir
         os.system(extract_cmd)
 
 
     
     def extract_cab_file(self, cab_file, output_dir):
         print("Extracting the cab file")
-        extract_cmd = "expand.exe " + "-F:* ", + cab_file + " ", output_dir
-        
+        extract_cmd = "expand.exe -F:* " + cab_file + " " + output_dir
         os.system(extract_cmd)
 
 
