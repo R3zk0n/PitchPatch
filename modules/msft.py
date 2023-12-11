@@ -22,7 +22,8 @@ visited_urls = set()
 
 #MAIN TODO: Get the N-Day/1-day download to work
 #TODO: Ensure that the productID mapping are not duplicated. 
-
+# Cumulative Update format appear to be YYYY-MM release-number (x86|x64|ARM64) cumulative format. 
+# can we use the 
 '''
 Per the recommendation from discord, this shuould levearge winbinindex to match the KB and download the "Patched and "Non patched" Version of the KB.
 To Help.
